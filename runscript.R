@@ -23,7 +23,7 @@ CALCULATE_EXTERNAL_SEED_RAIN <- FALSE
 
 # Directories
 base_directory <- dirname(rstudioapi::getActiveDocumentContext()$path)
-# base_directory <- getwd() # Ensure that your base directory is the PPA folder
+# base_directory <- getwd()
 output_directory = paste0(base_directory, "/output/")
 
 species_file = paste0(base_directory, "/input/PPA_FG5_filtered.csv")
@@ -83,7 +83,6 @@ parameterize = function()
         initComm <- generateDefaultCommunity(spVitals)
     }
 
-    # A list of all the precursors to one simulation run
     return(list(spVitals = spVitals, initComm = initComm))
 }
 
@@ -101,6 +100,5 @@ generateDefaultCommunity <- function(spVitals)
 
 
 # Run ---------------------------------------------------------------------
-
-tic() run() toc()
-source(file = postprocessing_script)
+tic(); run(); toc()
+source(postprocessing_script)

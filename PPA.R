@@ -22,7 +22,7 @@ mincohortN <- 0.001     # minimum cohort size
 deltaT <- 5             # model timestep. This is a fixed parameter (see generateInternalSeedRain).
 cutT <- deltaT
 maxT <- 200*deltaT      # simulation terminal year
-nLayers <- 5            # TODO HAVE THE DATA ACTUALLY SET THIS IN THE RUNSCRIPT
+nLayers <- 5            # TODO Calculate this value from the spVitals data.frame
 
 
 # run_simulation ------------------------------------------------------------------------------
@@ -190,19 +190,19 @@ calculateOutput <- function(data, mortality, year, spVitals)
 
     cohorts <- n_ba_agb(data, ID, wd)
     results <- data.frame(Model = "PPA",
-                         Year = year,
-                         SpeciesID = cohorts$SpeciesID,
-                         N = cohorts$N,
-                         Diameter = cohorts$Diameter,
-                         BasalArea = cohorts$BasalArea,
-                         Biomass = cohorts$Biomass)
+                          Year = year,
+                          SpeciesID = cohorts$SpeciesID,
+                          N = cohorts$N,
+                          Diameter = cohorts$Diameter,
+                          BasalArea = cohorts$BasalArea,
+                          Biomass = cohorts$Biomass)
 
     cohortsMortality <- n_ba_agb(mortality, ID, wd)
     results_mortality <- data.frame(Model = "PPA",
-                            Year = year,
-                            SpeciesID = cohortsMortality$SpeciesID,
-                            N = cohortsMortality$N,
-                            Biomass = cohortsMortality$Biomass)
+                                    Year = year,
+                                    SpeciesID = cohortsMortality$SpeciesID,
+                                    N = cohortsMortality$N,
+                                    Biomass = cohortsMortality$Biomass)
 
     out <- list(results, results_mortality)
     return(out)
@@ -251,7 +251,7 @@ n_ba_agb <- function(data, ID, wd)
 
     ba <- (d/200)^2 * pi * n
 
-    agb <- wd[ID[sp]] *                 # wd[ID[sp]] corresponds to the species' wood density
+    agb <- wd[match(sp, ID)] *      # wd[match(sp, ID)] corresponds to the species' wood density
         exp(-1.499 +
                 2.148*log(d) +
                 0.207*log(d)^2 -

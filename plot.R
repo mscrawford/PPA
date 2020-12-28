@@ -24,7 +24,7 @@ plots <- map(.x = size_classes,
                                    y = BasalArea,
                                    color = SizeClass),
                                show.legend = FALSE) +
-                     facet_grid(cols = vars(SpeciesID)) +
+                     facet_grid(cols = vars(SpeciesID), labeller = label_both) +
                      scale_color_grey() +
                      labs(x = "Year",
                           y = "Basal Area",
@@ -44,5 +44,7 @@ ggplot(species) +
     geom_line(aes(x = Year,
                   y = BasalArea,
                   color = as.factor(SpeciesID))) +
-    labs(color = "SpeciesID") +
+    labs(x = "Year",
+         y = "Basal Area",
+         color = "SpeciesID") +
     theme_minimal()
