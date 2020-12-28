@@ -1,10 +1,9 @@
-# Perfect Plasticity Approximation model (Strigul et al. 2008)
-# Adapted from Rüger et al. 2020 (code written by Caroline Farrior)
-
 
 # Libraries ---------------------------------------------------------------
 
 library(dplyr)
+library(assertthat)
+
 
 # Global constants ----------------------------------------------------------------------------
 
@@ -23,68 +22,14 @@ mincohortN <- 0.001     # minimum cohort size
 deltaT <- 5             # model timestep. This is a fixed parameter (see generateInternalSeedRain).
 cutT <- deltaT
 maxT <- 200*deltaT      # simulation terminal year
-nLayers <- 5
-
-# Global mutable parameters -------------------------------------------------------------------
-
-set.seed(1)
-
-USE_INITIAL_COMMUNITY <- TRUE
-
-CALCULATE_INTERNAL_SEED_RAIN <- TRUE
-CALCULATE_EXTERNAL_SEED_RAIN <- FALSE
-
-# Directories
-base_directory <- dirname(rstudioapi::getActiveDocumentContext()$path)
-# base_directory <- getwd() # Ensure that your base directory is the PPA folder
-species_file = "/input/PPA_FG5_filtered.csv"
-initComm_file = "/input/PPA_initial_state_fg5_secondary.csv"
-output_directory = "/output/"
+nLayers <- 5            # TODO HAVE THE DATA ACTUALLY SET THIS IN THE RUNSCRIPT
 
 
-# run ---------------------------------------------------------------------
-run <- function()
+# run_simulation ------------------------------------------------------------------------------
+# Runs one simulation with a given set of species (spVitals) and initial community (initComm).
+run_simulation <- function(spVitals, initComm)
 {
-    parameterization <- parameterize()
-
-    results <- run_serial(parameterization)
-
-    saveRDS(object = results,
-            file = paste0(base_directory, output_directory, "/PPA_output.rds"))
-}
-
-
-# run_serial --------------------------------------------------------------
-run_serial <- function(parameterization)
-{
-    spVitals <- parameterization$spVitals
-    initComm <- parameterization$initComm
-    externalSeedRain <- parameterization$externalSeedRain
-
-    results <- run_simulation(spVitals, initComm, externalSeedRain)
-
-    return(results)
-}
-
-
-# parameterize ------------------------------------------------------------
-parameterize = function()
-{
-    # Define the species present in the simulation
-    spVitals <- read.table(paste0(base_directory, species_file), sep = ",", header = TRUE)
-
-    # Define the initial community composition
-    initComm <- NULL
-    if (USE_INITIAL_COMMUNITY)
-    {
-        initComm <- read.table(paste0(base_directory, initComm_file), sep = "\t", header = FALSE)
-        initComm <- as.matrix(initComm)
-        names(initComm) <- NULL
-        initComm <- cbind(initComm[,c(2,3)], NA, initComm[,1])
-        initComm <- calculateLayers(initComm)
-    } else {
-        initComm <- generateDefaultCommunity(spVitals)
-    }
+    list2env(x = disaggregateSpeciesVitals(spVitals), envir = environment())
 
     # If applicable, define the external seed rain per time step
     externalSeedRain <- NULL
@@ -93,18 +38,8 @@ parameterize = function()
         externalSeedRain <- generateExternalSeedRain(spVitals)
     }
 
-    # A list of all the precursors to one simulation run
-    return(list(spVitals = spVitals, initComm = initComm, externalSeedRain = externalSeedRain))
-}
-
-
-# run_simulation ------------------------------------------------------------------------------
-# Runs one simulation with a given set of species (spVitals) and initial community (initComm).
-run_simulation <- function(spVitals, initComm, externalSeedRain)
-{
-    list2env(x = disaggregateSpeciesVitals(spVitals), envir = environment())
-
     results <- NULL
+    results_mortality <- NULL
 
     # Data matrix has columns:
     # (1) diameter per individual
@@ -114,8 +49,6 @@ run_simulation <- function(spVitals, initComm, externalSeedRain)
     data <- initComm
     for (t in seq(0, maxT, by = deltaT))
     {
-        startingData <- data
-
         # Mortality matrix has columns:
         # (1) diameter per dead individual
         # (2) # of dead individuals
@@ -161,7 +94,6 @@ run_simulation <- function(spVitals, initComm, externalSeedRain)
         # Step 3b. External seed rain
         if (CALCULATE_EXTERNAL_SEED_RAIN)
         {
-            assertthat::assert_that(!is.null(externalSeedRain))
             data <- rbind(data, externalSeedRain)
         }
 
@@ -171,24 +103,16 @@ run_simulation <- function(spVitals, initComm, externalSeedRain)
         # Step 5: Record
         if (floor(t/cutT) == t/cutT & t != 0) # Records every cutT timesteps
         {
-            results <- rbind(results, calculateOutput(data, startingData, mortality, t, spVitals))
+            out <- calculateOutput(data, mortality, t, spVitals)
+
+            results <- rbind(results, out[[1]])
+            results_mortality <- rbind(results_mortality, out[[2]])
         }
     }
 
-    return(results)
+    return(list(results, results_mortality))
 }
 
-
-# generateDefaultCommunity ------------------------------------------------
-# Generates a default, initial community. This data matrix closely resembles that
-# of the external seed rain, except that by default all individuals within the
-# initial community are in the first light layer (the canopy).
-generateDefaultCommunity <- function(spVitals)
-{
-    initComm <- generateExternalSeedRain(spVitals)
-    initComm[,3] <- 1
-    return(initComm)
-}
 
 # generateInternalSeedRain ------------------------------------------------
 # This function generates the internal seed rain generated per species across deltaT
@@ -198,16 +122,16 @@ generateInternalSeedRain <- function(data, spVitals)
 {
     list2env(x = disaggregateSpeciesVitals(spVitals), envir = environment())
 
-    tmp_internalSeedRain <- NULL
-    for (sp in unique(data[,4]))
-    {
-        t_sp_cohorts <- data[data[,4] == sp, , drop = FALSE]
+    cohorts_ba <- n_ba_agb(data, ID, wd)
 
-        nbaabg <- n_ba_agb(t_sp_cohorts, ID, wd)
+    tmp_internalSeedRain <- NULL
+    for (sp in unique(cohorts_ba$SpeciesID))
+    {
+        s_ba <- sum(cohorts_ba[cohorts_ba$SpeciesID == sp, ]$BasalArea)
 
         tmp_internalSeedRain <- rbind(tmp_internalSeedRain,
                                       c(dnot,
-                                        nbaabg$ba * Fec[ID == sp],
+                                        s_ba * Fec[ID == sp],
                                         nLayers - 1,
                                         sp,
                                         G[ID == sp, ncol(G)]))
@@ -250,12 +174,38 @@ generateExternalSeedRain <- function(spVitals)
     for (i in seq(deltaT - 1, 0, -1))
     {
         baby <- tmp_externalSeedRain
-        baby[,1] <- baby[,1] + G[, ncol(G)] * i # G[, ncol(G)] corresponds to the smallest growth rate
-        baby[,2] <- baby[,2] * (1 - mu[, ncol(mu)])^i # mu[, ncol(mu)] corresponds to the smallest mortality rate
+        baby[,1] <- baby[,1] + G[, ncol(G)] * i         # G[, ncol(G)] corresponds to the smallest growth rate
+        baby[,2] <- baby[,2] * (1 - mu[, ncol(mu)])^i   # mu[, ncol(mu)] corresponds to the smallest mortality rate
         externalSeedRain <- rbind(externalSeedRain, baby)
     }
 
     return(externalSeedRain)
+}
+
+
+# calculateOutput ---------------------------------------------------------
+calculateOutput <- function(data, mortality, year, spVitals)
+{
+    list2env(x = disaggregateSpeciesVitals(spVitals), envir = environment())
+
+    cohorts <- n_ba_agb(data, ID, wd)
+    results <- data.frame(Model = "PPA",
+                         Year = year,
+                         SpeciesID = cohorts$SpeciesID,
+                         N = cohorts$N,
+                         Diameter = cohorts$Diameter,
+                         BasalArea = cohorts$BasalArea,
+                         Biomass = cohorts$Biomass)
+
+    cohortsMortality <- n_ba_agb(mortality, ID, wd)
+    results_mortality <- data.frame(Model = "PPA",
+                            Year = year,
+                            SpeciesID = cohortsMortality$SpeciesID,
+                            N = cohortsMortality$N,
+                            Biomass = cohortsMortality$Biomass)
+
+    out <- list(results, results_mortality)
+    return(out)
 }
 
 
@@ -265,7 +215,8 @@ generateExternalSeedRain <- function(spVitals)
 # environment of the calling function. This reduces the amount of code needed to incorporate
 # a variable number of layers within the simulation.
 #
-# This function assumes that there is a growth rate and mortality rate for each layer.
+# This function assumes that there is a growth rate and mortality rate for each layer,
+# and that they are ordered decreasing with crown class.
 disaggregateSpeciesVitals <- function(spVitals)
 {
     N <- nrow(spVitals)                                     # community size (integer)
@@ -276,68 +227,38 @@ disaggregateSpeciesVitals <- function(spVitals)
     Fec <- spVitals %>% select(contains("F")) %>% pull()    # fecundity rate (vector)
     wd <- spVitals %>% select(contains("wd")) %>% pull()    # wood density (vector)
 
-    assertthat::assert_that(ncol(G) == ncol(mu))
-    assertthat::assert_that(ncol(G) == nLayers - 1)
+    if (DEBUG)
+    {
+        assertthat::assert_that(ncol(G) == ncol(mu))
+        assertthat::assert_that(ncol(G) == nLayers - 1)
+
+        columnOrder <- as.numeric(substring(colnames(G), 2))
+        assertthat::assert_that(!is.unsorted(columnOrder) & columnOrder[length(columnOrder)] > columnOrder[1])
+    }
 
     return(list(N = N, ID = ID, G = G, mu = mu, Fec = Fec, wd = wd))
 }
 
 
-# calculateOutput ---------------------------------------------------------
-calculateOutput <- function(data, startingData, mortality, year, spVitals)
-{
-    list2env(x = disaggregateSpeciesVitals(spVitals), envir = environment())
-
-    out <- NULL
-
-    for (sp in unique(data[,4]))
-    {
-        ss_t1 <- data[data[,4] == sp, , drop = FALSE]
-        ss_t0 <- startingData[startingData[,4] == sp, , drop = FALSE]
-        ss_t0_mort <- mortality[mortality[,4] == sp, , drop = FALSE]
-
-        nbaabg_t1 <- n_ba_agb(ss_t1, ID, wd)
-        nbaabg_t0 <- n_ba_agb(ss_t0, ID, wd)
-        nbaabg_t0_mort <- n_ba_agb(ss_t0_mort, ID, wd)
-
-        productivity <- nbaabg_t1$agb - nbaabg_t0$agb + nbaabg_t0_mort$agb
-        productivity <- ifelse(productivity < 0, 0, productivity)
-
-        sp.out <- data.frame(Model = "PPA",
-                             SpeciesID = sp,
-                             `F` = Fec[ID == sp],
-                             Year = year,
-                             N = nbaabg_t1$n,
-                             BasalArea = nbaabg_t1$ba,
-                             Biomass = nbaabg_t1$agb,
-                             Productivity = productivity)
-
-        out <- rbind(out, sp.out)
-    }
-
-    return(out)
-}
-
-
 # n_ba_agb ----------------------------------------------------------------
-# This function calculates the abundance, basal area, and aboveground biomass for each species.
+# This function calculates the abundance, basal area, and aboveground biomass for each cohort
 # It assumes that the data matrix supplied to it is composed of only one species.
 n_ba_agb <- function(data, ID, wd)
 {
-    assertthat::assert_that(length(unique(data[,4])) %in% c(0, 1))
+    d <- data[,1]
+    n <- data[,2]
+    sp <- data[,4]
 
-    sp <- unique(data[,4])
-    n <- sum(data[,2])
-    ba <- sum( (data[,1]/200)^2 * pi * data[,2] )
+    ba <- (d/200)^2 * pi * n
 
-    s_wd <- wd[ID == sp]
-    agb <- sum(s_wd *
-                   exp(-1.499 + 2.148*log(data[,1]) +
-                           0.207*log(data[,1])^2 -
-                           0.0281*log(data[,1])^3) /
-                   1000 * data[,2])
+    agb <- wd[ID[sp]] *                 # wd[ID[sp]] corresponds to the species' wood density
+        exp(-1.499 +
+                2.148*log(d) +
+                0.207*log(d)^2 -
+                0.0281*log(d)^3) /
+        1000 * n
 
-    return(list(n = n, ba = ba, agb = agb))
+    return(data.frame(SpeciesID = sp, Diameter = d, N = n, BasalArea = ba, Biomass = agb))
 }
 
 
@@ -414,21 +335,3 @@ CCassign_manylayers_continuous = function(data)
 
     return(data)
 }
-
-
-# Run ---------------------------------------------------------------------
-run()
-
-
-# Quick plot --------------------------------------------------------------
-
-library(ggplot2)
-
-results <- readRDS(file = paste0(base_directory, output_directory, "PPA_output.rds"))
-
-ggplot(results) +
-    geom_line(aes(x = Year,
-                  y = BasalArea,
-                  color = as.factor(SpeciesID))) +
-    labs(color = "SpeciesID") +
-    theme_minimal()
