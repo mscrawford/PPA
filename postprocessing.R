@@ -19,21 +19,16 @@ spVitals <- read.table(species_file, sep = ",", header = TRUE)
 
 # Generate size-class data set --------------------------------------------
 
-size_classes <- c(10, 20, 50)
+size_class_designations <- c(0, 5, 20, 60, 300)
 
-size_class_cohorts <- map(.x = size_classes,
-                          .f = ~ {
-                              cohorts %>%
-                                  mutate(SizeClass = cut(Diameter, breaks = seq(0, max(Diameter) + .x, by = .x))) %>%
-                                  group_by(Model, Year, SpeciesID, SizeClass) %>%
-                                  summarise(SizeClass_width = .x,
-                                            Diameter = sum(Diameter),
-                                            BasalArea = sum(BasalArea),
-                                            Biomass = sum(Biomass))
-                          }
-)
+size_classes <- cohorts %>%
+    mutate(SizeClass = cut(Diameter, breaks = size_class_designations)) %>%
+    group_by(Model, Year, SpeciesID, SizeClass) %>%
+    summarise(Diameter = sum(Diameter),
+              BasalArea = sum(BasalArea),
+              Biomass = sum(Biomass))
 
-saveRDS(size_class_cohorts, file = paste0(output_directory, "/PPA_output_processed_size_classes.rds"))
+saveRDS(size_classes, file = paste0(output_directory, "/PPA_output_processed_size_classes.rds"))
 
 
 # Generate species-level data set -----------------------------------------

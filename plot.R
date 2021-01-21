@@ -10,41 +10,38 @@ library(cowplot)
 # Directories -------------------------------------------------------------
 
 base_directory <- dirname(rstudioapi::getActiveDocumentContext()$path)
-output_directory = paste0(base_directory, "/output/")
+output_directory <- paste0(base_directory, "/output/")
+plot_directory <- paste0(base_directory, "/plots/")
 
 
 # Plotting size-class cohorts ---------------------------------------------
 
 size_classes <- readRDS(paste0(output_directory, "PPA_output_processed_size_classes.rds"))
 
-plots <- map(.x = size_classes,
-             .f = ~ {
-                 ggplot(.x) +
-                     geom_line(aes(x = Year,
-                                   y = BasalArea,
-                                   color = SizeClass),
-                               show.legend = FALSE) +
-                     facet_grid(cols = vars(SpeciesID), labeller = label_both) +
-                     scale_color_grey() +
-                     labs(x = "Year",
-                          y = "Basal Area",
-                          title = paste("Size class width:", unique(.x$SizeClass_width))) +
-                     theme_minimal()
-             }
-)
+p <- ggplot(size_classes) +
+    geom_line(aes(x = Year,
+                  y = BasalArea,
+                  color = as.factor(SpeciesID))) +
+    facet_wrap(facets = vars(SizeClass), labeller = label_both) +
+    labs(x = "Year",
+         y = "Basal Area",
+         color = "SpeciesID") +
+    theme_minimal()
 
-plot_grid(plotlist = plots, nrow = length(plots))
+save_plot(plot = p, filename = paste0(plot_directory, "SizeClasses.pdf"))
 
 
 # Plotting species-level data ---------------------------------------------
 
 species <- readRDS(paste0(output_directory, "PPA_output_processed_species.rds"))
 
-ggplot(species) +
+p <- ggplot(species) +
     geom_line(aes(x = Year,
-                  y = BasalArea,
+                  # y = BasalArea,
+                  y = N,
                   color = as.factor(SpeciesID))) +
     labs(x = "Year",
-         y = "Basal Area",
          color = "SpeciesID") +
     theme_minimal()
+
+save_plot(plot = p, filename = paste0(plot_directory, "Species.PDF"))

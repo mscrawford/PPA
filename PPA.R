@@ -8,34 +8,53 @@ library(assertthat)
 # Global constants ----------------------------------------------------------------------------
 
 # Note:
-#   crown radius = 0.5*dbh^0.62; dbh in cm and crown radius in m
-#   crown area = phi*dbh^theta
+#   crown radius    = 0.5*dbh^0.62; dbh in cm and crown radius in m
+#   crown area      = phi*dbh^theta
 
 # Commonly used constants
-phi <- round(pi * 0.5^2, 4)
-theta <- 1.24
+phi     <- round(pi * 0.5^2, 4)
+theta   <- 1.24
 
 # Global constants
-PA <- 10000             # plot size: 1 ha
-dnot <- 1               # initial tree diameter: 1 cm
-mincohortN <- 0.001     # minimum cohort size
-deltaT <- 5             # model timestep. This is a fixed parameter (see generateInternalSeedRain).
-cutT <- deltaT
-maxT <- 200*deltaT      # simulation terminal year
-nLayers <- 5            # TODO Calculate this value from the spVitals data.frame
+PA          <- 10000        # plot size: 1 ha
+dnot        <- 1            # initial tree diameter: 1 cm
+mincohortN  <- 0.001        # minimum cohort size
+deltaT      <- 5            # model timestep. This is a fixed parameter (see generateInternalSeedRain).
+cutT        <- deltaT
+maxT        <- 200 * deltaT # simulation terminal year
+nLayers     <- NULL         # Number of layers (integer)
+
+# Species traits
+N       <- NULL # community size (integer)
+ID      <- NULL # species ID (vector)
+G       <- NULL # growth rates (matrix)
+mu      <- NULL # mortality rates (matrix)
+Fec     <- NULL # fecundity rate (vector)
+wd      <- NULL # wood density (vector)
 
 
 # run_simulation ------------------------------------------------------------------------------
-# Runs one simulation with a given set of species (spVitals) and initial community (initComm).
-run_simulation <- function(spVitals, initComm)
+# Runs one simulation with a given set of species (spVitals), initial community (initComm), and number of layers.
+run_simulation <- function(spVitals_list, initComm)
 {
-    list2env(x = disaggregateSpeciesVitals(spVitals), envir = environment())
+
+    list2env(x = spVitals_list, envir = .GlobalEnv)
+
+    if (USE_INITIAL_COMMUNITY)
+    {
+        initComm <- as.matrix(initComm)
+        names(initComm) <- NULL
+        initComm <- cbind(initComm[,c(2,3)], NA, initComm[,1])
+        initComm <- calculateLayers(initComm)
+    } else {
+        initComm <- generateDefaultCommunity(spVitals_list)
+    }
 
     # If applicable, define the external seed rain per time step
     externalSeedRain <- NULL
     if (CALCULATE_EXTERNAL_SEED_RAIN)
     {
-        externalSeedRain <- generateExternalSeedRain(spVitals)
+        externalSeedRain <- generateExternalSeedRain()
     }
 
     results <- NULL
@@ -87,7 +106,7 @@ run_simulation <- function(spVitals, initComm)
         # Step 3a. Internal seed rain
         if (CALCULATE_INTERNAL_SEED_RAIN)
         {
-            internalSeedRain <- generateInternalSeedRain(data, spVitals)
+            internalSeedRain <- generateInternalSeedRain(data)
             data <- rbind(data, internalSeedRain)
         }
 
@@ -103,7 +122,7 @@ run_simulation <- function(spVitals, initComm)
         # Step 5: Record
         if (floor(t/cutT) == t/cutT & t != 0) # Records every cutT timesteps
         {
-            out <- calculateOutput(data, mortality, t, spVitals)
+            out <- calculateOutput(data, mortality, t)
 
             results <- rbind(results, out[[1]])
             results_mortality <- rbind(results_mortality, out[[2]])
@@ -118,11 +137,9 @@ run_simulation <- function(spVitals, initComm)
 # This function generates the internal seed rain generated per species across deltaT
 # years. It returns a matrix that can, optionally, be added to the main data matrix on a
 # yearly basis.
-generateInternalSeedRain <- function(data, spVitals)
+generateInternalSeedRain <- function(data)
 {
-    list2env(x = disaggregateSpeciesVitals(spVitals), envir = environment())
-
-    cohorts_ba <- n_ba_agb(data, ID, wd)
+    cohorts_ba <- n_ba_agb(data)
 
     tmp_internalSeedRain <- NULL
     for (sp in unique(cohorts_ba$SpeciesID))
@@ -157,10 +174,8 @@ generateInternalSeedRain <- function(data, spVitals)
 # This function generates the seed rain per species across deltaT years. It
 # returns a matrix that can, optionally, be added to the main data matrix on a
 # yearly basis.
-generateExternalSeedRain <- function(spVitals)
+generateExternalSeedRain <- function()
 {
-    list2env(x = disaggregateSpeciesVitals(spVitals), envir = environment())
-
     # Seed rain matrix
     tmp_externalSeedRain <- matrix(1, nrow = N, ncol = 4)
 
@@ -183,12 +198,23 @@ generateExternalSeedRain <- function(spVitals)
 }
 
 
-# calculateOutput ---------------------------------------------------------
-calculateOutput <- function(data, mortality, year, spVitals)
+# generateDefaultCommunity ------------------------------------------------
+# Generates a default, initial community. This data matrix closely resembles that
+# of the external seed rain, except that by default all individuals within the
+# initial community are in the first light layer (the canopy).
+generateDefaultCommunity <- function(spVitals_list)
 {
-    list2env(x = disaggregateSpeciesVitals(spVitals), envir = environment())
+    initComm <- generateExternalSeedRain()
+    initComm[,3] <- 1
+    return(initComm)
+}
 
-    cohorts <- n_ba_agb(data, ID, wd)
+
+# calculateOutput ---------------------------------------------------------
+calculateOutput <- function(data, mortality, year)
+{
+
+    cohorts <- n_ba_agb(data)
     results <- data.frame(Model = "PPA",
                           Year = year,
                           SpeciesID = cohorts$SpeciesID,
@@ -197,7 +223,7 @@ calculateOutput <- function(data, mortality, year, spVitals)
                           BasalArea = cohorts$BasalArea,
                           Biomass = cohorts$Biomass)
 
-    cohortsMortality <- n_ba_agb(mortality, ID, wd)
+    cohortsMortality <- n_ba_agb(mortality)
     results_mortality <- data.frame(Model = "PPA",
                                     Year = year,
                                     SpeciesID = cohortsMortality$SpeciesID,
@@ -209,41 +235,10 @@ calculateOutput <- function(data, mortality, year, spVitals)
 }
 
 
-# disaggregateSpeciesVitals --------------------------------------------------
-# Disaggregates the `spVitals` dataframe into its component parts, which each document one
-# aspect of the species' vital rates. These parameters can then be exported to the
-# environment of the calling function. This reduces the amount of code needed to incorporate
-# a variable number of layers within the simulation.
-#
-# This function assumes that there is a growth rate and mortality rate for each layer,
-# and that they are ordered decreasing with crown class.
-disaggregateSpeciesVitals <- function(spVitals)
-{
-    N <- nrow(spVitals)                                     # community size (integer)
-
-    ID <- spVitals %>% select(SpeciesID) %>% pull()         # species ID (vector)
-    G <- spVitals %>% select(contains("G"))                 # growth rates (matrix)
-    mu <- spVitals %>% select(contains("mu"))               # mortality rates (matrix)
-    Fec <- spVitals %>% select(contains("F")) %>% pull()    # fecundity rate (vector)
-    wd <- spVitals %>% select(contains("wd")) %>% pull()    # wood density (vector)
-
-    if (DEBUG)
-    {
-        assertthat::assert_that(ncol(G) == ncol(mu))
-        assertthat::assert_that(ncol(G) == nLayers - 1)
-
-        columnOrder <- as.numeric(substring(colnames(G), 2))
-        assertthat::assert_that(!is.unsorted(columnOrder) & columnOrder[length(columnOrder)] > columnOrder[1])
-    }
-
-    return(list(N = N, ID = ID, G = G, mu = mu, Fec = Fec, wd = wd))
-}
-
-
 # n_ba_agb ----------------------------------------------------------------
 # This function calculates the abundance, basal area, and aboveground biomass for each cohort
 # It assumes that the data matrix supplied to it is composed of only one species.
-n_ba_agb <- function(data, ID, wd)
+n_ba_agb <- function(data)
 {
     d <- data[,1]
     n <- data[,2]
