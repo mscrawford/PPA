@@ -7,14 +7,14 @@ library(tidyverse)
 
 # Directories and data sets -----------------------------------------------
 
-base_directory <- dirname(rstudioapi::getActiveDocumentContext()$path)
-output_directory = paste0(base_directory, "/output/")
-input_directory = paste0(base_directory, "/input/")
-species_file = paste0(base_directory, "/input/PPA_FG5_filtered.csv")
+base_directory   <- dirname(rstudioapi::getActiveDocumentContext()$path)
+output_directory <- paste0(base_directory, "/output/")
+input_directory  <- paste0(base_directory, "/input/")
+species_file     <- paste0(base_directory, "/input/PPA_FG5_filtered.csv")
 
-cohorts <- readRDS(paste0(output_directory, "PPA_output_raw_cohort.rds"))
-mortality <- readRDS(paste0(output_directory, "PPA_output_raw_cohort_mortality.rds"))
-spVitals <- read.table(species_file, sep = ",", header = TRUE)
+cohorts          <- readRDS(paste0(output_directory, "PPA_output_raw_cohort.rds"))
+mortality        <- readRDS(paste0(output_directory, "PPA_output_raw_cohort_mortality.rds"))
+spVitals         <- read.table(species_file, sep = ",", header = TRUE)
 
 
 # Generate size-class data set --------------------------------------------

@@ -215,20 +215,20 @@ calculateOutput <- function(data, mortality, year)
 {
 
     cohorts <- n_ba_agb(data)
-    results <- data.frame(Model = "PPA",
-                          Year = year,
+    results <- data.frame(Model     = "PPA",
+                          Year      = year,
                           SpeciesID = cohorts$SpeciesID,
-                          N = cohorts$N,
-                          Diameter = cohorts$Diameter,
+                          N         = cohorts$N,
+                          Diameter  = cohorts$Diameter,
                           BasalArea = cohorts$BasalArea,
-                          Biomass = cohorts$Biomass)
+                          Biomass   = cohorts$Biomass)
 
     cohortsMortality <- n_ba_agb(mortality)
-    results_mortality <- data.frame(Model = "PPA",
-                                    Year = year,
+    results_mortality <- data.frame(Model     = "PPA",
+                                    Year      = year,
                                     SpeciesID = cohortsMortality$SpeciesID,
-                                    N = cohortsMortality$N,
-                                    Biomass = cohortsMortality$Biomass)
+                                    N         = cohortsMortality$N,
+                                    Biomass   = cohortsMortality$Biomass)
 
     out <- list(results, results_mortality)
     return(out)

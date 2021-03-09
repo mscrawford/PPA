@@ -9,9 +9,9 @@ library(cowplot)
 
 # Directories -------------------------------------------------------------
 
-base_directory <- dirname(rstudioapi::getActiveDocumentContext()$path)
+base_directory   <- dirname(rstudioapi::getActiveDocumentContext()$path)
 output_directory <- paste0(base_directory, "/output/")
-plot_directory <- paste0(base_directory, "/plots/")
+plot_directory   <- paste0(base_directory, "/plots/")
 
 
 # Plotting size-class cohorts ---------------------------------------------
@@ -37,8 +37,8 @@ species <- readRDS(paste0(output_directory, "PPA_output_processed_species.rds"))
 
 p <- ggplot(species) +
     geom_line(aes(x = Year,
-                  # y = BasalArea,
-                  y = N,
+                  y = BasalArea,
+                  # y = N,
                   color = as.factor(SpeciesID))) +
     labs(x = "Year",
          color = "SpeciesID") +
