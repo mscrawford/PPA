@@ -1,6 +1,6 @@
-# PPA
+# Perfect Plasticity Approximation
 
-Implementation of the Perfect Plasticity Approximation model (Strigul et al. 2008) for tropical forest succession. Adapted from Rüger et al. 2020 (code written by Caroline Farrior, cfarrior@gmail.com; https://github.com/cfarrior/Ruger_etal_2020).
+Implementation of the Perfect Plasticity Approximation (PPA) model (Strigul et al. 2008) of tropical forest succession. Adapted from Rüger et al. 2020 (code written by Caroline Farrior, cfarrior@gmail.com; https://github.com/cfarrior/Ruger_etal_2020).
 
 To run, simply source runscript.R with RStudio. 
 
