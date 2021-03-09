@@ -39,7 +39,6 @@ source(PPA_script)
 
 
 # run ---------------------------------------------------------------------
-
 run <- function()
 {
     parameterization <- parameterize()
@@ -52,7 +51,6 @@ run <- function()
 
 
 # run_serial --------------------------------------------------------------
-
 run_serial <- function(parameterization)
 {
     spVitals_list <- parameterization$spVitals_list
@@ -65,7 +63,6 @@ run_serial <- function(parameterization)
 
 
 # run_parallel ------------------------------------------------------------
-
 run_parallel <- function(parameterization)
 {
 
@@ -73,7 +70,6 @@ run_parallel <- function(parameterization)
 
 
 # parameterize ------------------------------------------------------------
-
 parameterize = function()
 {
     # Define the species present in the simulation
